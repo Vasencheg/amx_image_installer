@@ -8,23 +8,21 @@
 
 
 # DEVICE SPECIFIC VARIABLES
-# Acer Liquid Mini E310 VID and PID
-DEVICE="Acer Liquid Mini E310"
-DEVICE_VID="0502"
-DEVICE_PID_ADB="3307"
-DEVICE_PID_FASTBOOT="3306"
+DEVICE=""
+DEVICE_VID=""
+DEVICE_PID_ADB=""
+DEVICE_PID_FASTBOOT=""
+IMG=""
+PARTITION=""
 
-# OTHERS
+#
 UDEV_RULES_FILE="51-android.rules"
-
 AMX_USER=$1
 APP_DIR=$PWD
 
+# Tools
 ADB="./adb"
 FASTBOOT="./fastboot"
-
-IMG="./recovery.img"
-PARTITION="recovery"
 
 
 colors_export() {
@@ -43,6 +41,38 @@ colors_export() {
         export ltblu="\e[1;34m" # Blue
         export ltprpl="\e[1;35m" # Purple
         export ltcyn="\e[1;36m" # Cyan
+}
+
+option_select() {
+        echo -e "${ltylw}Please, choose an option to continue:${toff}
+  ${ltgrn}1${toff}) - ${ltylw}Install AdvantageMX recovery to Acer Liquid Mini E310${toff}
+  ${ltgrn}2${toff}) - ${ltylw}Install AdvantageMX recovery to Acer beTouch E140${toff}
+  ${ltgrn}X${toff}) - ${ltylw}exit${toff}
+"
+        echo -ne "> "
+        read option
+        case $option in
+	        1)      # Acer Liquid Mini E310 VID and PID
+                        DEVICE="Acer Liquid Mini E310"
+                        DEVICE_VID="0502"
+                        DEVICE_PID_ADB="3307"
+                        DEVICE_PID_FASTBOOT="3306"
+                        IMG="./recovery.img"
+                        PARTITION="recovery"
+                        ;;
+                2)      # Acer beTouch E140 VID and PID
+                        DEVICE="Acer beTouch E140"
+                        DEVICE_VID="0502"
+                        DEVICE_PID_ADB="3302"
+                        DEVICE_PID_FASTBOOT="3301"
+                        IMG="./recovery.img"
+                        PARTITION="recovery"
+                        ;;
+	        x|X)
+		        echo -e "${ltcyn}Goodbye!${toff}"
+		        exit 1;;
+        esac
+        echo
 }
 
 udev_rules_check() {
@@ -136,7 +166,7 @@ install() {
 
 stage() {
         echo
-        echo -e "${ltgrn}--------------Stage $1 --------------${toff}: "
+        echo -e "${ltgrn}-------------------- Stage $1 --------------------${toff}"
 }
 
 
@@ -154,7 +184,7 @@ clear
 colors_export
 echo -e "${ltgrn}
 --------------------------------------------------
-    Welcome to AdvantageMX $PARTITION Installer
+        Welcome to AdvantageMX Installer
 
               -= AMX Team =-
           http://advantagemx.ru
@@ -163,20 +193,12 @@ echo -e "${ltgrn}
             vasencheg@gmail.com
 --------------------------------------------------
 ${toff}
-${ltylw}You are about to install:
-  - AdvantageMX is a ClockWork Mod based Recovery
-    for Acer Liquid Mini E310
-
-Be sure you have checked this points :
+${ltylw}Be sure you have checked this points :
   - your phone is in FASTBOOT mode
 
-If you meet these requirements, you can go ${toff}
-
+If you meet these requirements, you can go. ${toff}
 "
-echo -n -e "Press ${ltylw}ENTER${toff} to continue..."
-read
-echo
-echo
+option_select
 # check udev rules
 stage 1
 udev_rules_check
