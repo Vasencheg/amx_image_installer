@@ -1,24 +1,30 @@
 #!/bin/bash
 #
-# This script is designed to install the AdvantageMX CWM-based recovery in Linux Ubuntu.
+# This script is designed to install the AdvantageMX images in Linux Ubuntu.
 # And make it easier for people that want to develop for Android ROM using Linux Ubuntu.
 # Script written by Vasencheg ( vasencheg@gmail.com )
 # AMX Team ( http://advantagemx.ru )
 
 
+
+# DEVICE SPECIFIC VARIABLES
 # Acer Liquid Mini E310 VID and PID
 DEVICE="Acer Liquid Mini E310"
-DEVICE_VID="0x0502"
-DEVICE_PID_ADB="0x3307"
-DEVICE_PID_FASTBOOT="0x3306"
+DEVICE_VID="0502"
+DEVICE_PID_ADB="3307"
+DEVICE_PID_FASTBOOT="3306"
 
-UDEV_RULES_FILE="52-android_acer_e310.rules"
+# OTHERS
+UDEV_RULES_FILE="51-android.rules"
 
 AMX_USER=$1
-
 APP_DIR=$PWD
+
+ADB="./adb"
 FASTBOOT="./fastboot"
-RECOVERY_IMG="./recovery.img"
+
+IMG="./recovery.img"
+PARTITION="recovery"
 
 
 colors_export() {
@@ -41,31 +47,57 @@ colors_export() {
 
 udev_rules_check() {
         cd /etc/udev/rules.d
-        echo -e "Check USB rule for device..."
+        echo -e "Check udev rules..."
         echo
         if test -f $UDEV_RULES_FILE; then
                 echo "The file $UDEV_RULES_FILE is already exist"
         else
                 echo -n "Creating $UDEV_RULES_FILE file: "
                 touch $UDEV_RULES_FILE
-                echo "# rules for $DEVICE" >> $UDEV_RULES_FILE
-                echo SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"$DEVICE_VID\", SYMLINK+=\"android_adb\", MODE=\"0666\", OWNER=\"USERNAME\" >> $UDEV_RULES_FILE
-                sed "s/USERNAME/$AMX_USER/g" $UDEV_RULES_FILE > tempfile1
-                cat tempfile1 > $UDEV_RULES_FILE
-                rm tempfile1
-                chmod a+r $UDEV_RULES_FILE
                 echo "done"
-                echo -n "Restarting UDEV:   "
-                restart udev
         fi
+
+        test_pattern_adb=`egrep "^.*$DEVICE_VID.*$DEVICE_PID_ADB.*$" $UDEV_RULES_FILE`
+        if ! test -z "${test_pattern_adb}"; then
+                echo "The ADB rules already exist: skipping."
+        else
+                echo -n "Creating rules for the ADB protocol: "
+                echo "# $DEVICE. Rules for the adb protocol" >> $UDEV_RULES_FILE
+                echo SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"$DEVICE_VID\", ATTR{idProduct}==\"$DEVICE_PID_ADB\", SYMLINK+=\"android_adb\", MODE=\"0600\", OWNER=\"USERNAME\" >> $UDEV_RULES_FILE
+                echo "done"
+        fi
+
+        test_pattern_fastboot=`egrep "^.*$DEVICE_VID.*$DEVICE_PID_FASTBOOT.*$" $UDEV_RULES_FILE`
+        if ! test -z "${test_pattern_fastboot}"; then
+                echo "The Fast Boot rules already exist: skipping."
+        else
+                echo -n "Creating rules for the Fast Boot protocol: "
+                echo "# $DEVICE. Rules for the fastboot protocol" >> $UDEV_RULES_FILE
+                echo SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"$DEVICE_VID\", ATTR{idProduct}==\"$DEVICE_PID_FASTBOOT\", SYMLINK+=\"android_fastboot\", MODE=\"0600\", OWNER=\"USERNAME\" >> $UDEV_RULES_FILE
+                echo "done"
+        fi
+
+        sed "s/USERNAME/$AMX_USER/g" $UDEV_RULES_FILE > tempfile1
+        cat tempfile1 > $UDEV_RULES_FILE
+        rm tempfile1
+        chmod a+r $UDEV_RULES_FILE
+
+        echo -n "Restarting UDEV:   "
+        restart udev
+        echo
+        echo -n -e "Please, reattach the device and then press ${ltylw}ENTER${toff} to continue..."
+        read
+
         cd  $APP_DIR
 }
 
 device_check() {
-        echo -e "Searching for ${ltcyn} $DEVICE ${toff}..."
-        while [ "`lsusb | grep -E "ID 0502"`" = "" ]
+        echo -e -n "Searching for ${ltcyn} $DEVICE ${toff}: "
+        while [ "`lsusb | grep -E "ID $DEVICE_VID"`" = "" ]
         do
-	        echo -n -e "  ${ltred}Device not found${toff}. Please, plug the device to PC and press ${ltylw}ENTER${toff} ..."
+	        echo -e "${ltred}device not found${toff}"
+                echo
+                echo -n -e "Please, plug the device to PC and press ${ltylw}ENTER${toff} ..."
                 read
         done
         echo "done"
@@ -77,28 +109,29 @@ cmd_excute() {
 
 install() {
         echo "Starting installation..."
+
         if ! test -f "$FASTBOOT"
         then
                 echo "Android fastboot tool isn't found"
                 echo "Exit."
                 exit 1
         fi
-        if ! test -f "$RECOVERY_IMG"
+        if ! test -f "$IMG"
         then
-                echo "recovery.img isn't found"
+                echo "$IMG isn't found"
                 echo "Exit."
                 exit 1
         fi
         echo
-        echo "Erasing the old recovery..."
-        "$FASTBOOT" -i 0x0502 erase recovery
+        echo "Erasing the old $PWD$PARTITION..."
+        "$FASTBOOT" -i 0x$DEVICE_VID erase $PARTITION
         echo
         echo "Try flashing..."
-        "$FASTBOOT" -i 0x0502 flash recovery "$RECOVERY_IMG"
+        "$FASTBOOT" -i 0x$DEVICE_VID flash $PARTITION "$IMG"
         echo
         echo -n -e "Press ${ltylw}ENTER${toff} to continue..."
         read
-        "$FASTBOOT" -i 0x0502 reboot
+        "$FASTBOOT" -i 0x$DEVICE_VID reboot
 }
 
 stage() {
@@ -121,7 +154,7 @@ clear
 colors_export
 echo -e "${ltgrn}
 --------------------------------------------------
-    Welcome to AdvantageMX recovery Installer
+    Welcome to AdvantageMX $PARTITION Installer
 
               -= AMX Team =-
           http://advantagemx.ru
@@ -144,12 +177,12 @@ echo -n -e "Press ${ltylw}ENTER${toff} to continue..."
 read
 echo
 echo
-# check device
-stage 1
-device_check
 # check udev rules
-stage 2
+stage 1
 udev_rules_check
+# check device
+stage 2
+device_check
 stage 3
 install
 exit 0
